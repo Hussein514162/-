@@ -86,10 +86,12 @@
     margin-top: 20px;
     display: flex;
     gap: 10px;
+    flex-wrap: wrap;
   }
 
   #filters > * {
     flex: 1;
+    min-width: 120px;
   }
 
   #chart-container {
@@ -101,6 +103,11 @@
 
   #export-btn {
     margin-top: 15px;
+  }
+
+  #input-تصنيف-جديد, #btn-إضافة-تصنيف {
+    margin-top: 5px;
+    display: none;
   }
 </style>
 </head>
@@ -117,16 +124,9 @@
   </label>
 
   <label>التصنيف:
-    <select id="input-تصنيف" required>
-      <option value="طعام">طعام</option>
-      <option value="مواصلات">مواصلات</option>
-      <option value="إيجار">إيجار</option>
-      <option value="راتب">راتب</option>
-      <option value="ترفيه">ترفيه</option>
-      <option value="أخرى">أخرى</option>
-    </select>
-    <input type="text" id="input-تصنيف-جديد" placeholder="أضف تصنيف جديد..." style="margin-top:5px; display:none;" />
-    <button type="button" id="btn-إضافة-تصنيف" style="margin-top:5px; display:none;">➕ إضافة تصنيف</button>
+    <select id="input-تصنيف" required></select>
+    <input type="text" id="input-تصنيف-جديد" placeholder="أضف تصنيف جديد..." />
+    <button type="button" id="btn-إضافة-تصنيف">➕ إضافة تصنيف</button>
   </label>
 
   <label>القيمة:
@@ -151,8 +151,8 @@
     <option value="الكل">الكل</option>
   </select>
 
-  <input type="date" id="فلتر-تاريخ-من" />
-  <input type="date" id="فلتر-تاريخ-إلى" />
+  <input type="date" id="فلتر-تاريخ-من" placeholder="من" />
+  <input type="date" id="فلتر-تاريخ-إلى" placeholder="إلى" />
 </div>
 
 <button id="export-btn" class="btn">⬇️ تصدير CSV</button>
@@ -189,27 +189,30 @@
   const STORAGE_KEY = "مصروفات_شهرية_متقدم";
   let بيانات = [];
   let تصنيفات = ["طعام", "مواصلات", "إيجار", "راتب", "ترفيه", "أخرى"];
-  let تعديلIndex = null; // لتتبع العنصر عند التعديل
+  let تعديلIndex = null; // لمتابعة التعديل
   let chart = null;
 
-  // تحميل البيانات من التخزين
+  // تحميل البيانات من localStorage
   function جلب_البيانات() {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
   }
 
-  // حفظ البيانات في التخزين
+  // حفظ البيانات في localStorage
   function حفظ_البيانات() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(بيانات));
   }
 
-  // تحديث قائمة التصنيفات في الاختيار مع إضافة خيار "أخرى"
+  // تحديث قوائم التصنيف (النموذج والفلتر)
   function تحديث_التصنيفات() {
     const select = document.getElementById("input-تصنيف");
     const filterSelect = document.getElementById("فلتر-تصنيف");
-    select.innerHTML = "";
-    filterSelect.innerHTML = `<option value="الكل">الكل</option>`;
 
+    // مسح الخيارات الحالية
+    select.innerHTML = "";
+    filterSelect.innerHTML = '<option value="الكل">الكل</option>';
+
+    // إضافة التصنيفات
     تصنيفات.forEach(cat => {
       const option1 = document.createElement("option");
       option1.value = cat;
@@ -222,14 +225,47 @@
       filterSelect.appendChild(option2);
     });
 
-    // أضف خيار "أخرى"
-    const otherOption = document.createElement("option");
-    otherOption.value = "أخرى";
-    otherOption.textContent = "أخرى";
-    select.appendChild(otherOption);
+    // خيار "أخرى"
+    const optionOther = document.createElement("option");
+    optionOther.value = "أخرى";
+    optionOther.textContent = "أخرى";
+    select.appendChild(optionOther);
   }
 
-  // تحديث الجدول بناءً على الفلاتر
+  // إظهار أو إخفاء حقل إضافة تصنيف جديد
+  document.getElementById("input-تصنيف").addEventListener("change", () => {
+    const val = document.getElementById("input-تصنيف").value;
+    const inputNewCat = document.getElementById("input-تصنيف-جديد");
+    const btnAddCat = document.getElementById("btn-إضافة-تصنيف");
+
+    if(val === "أخرى") {
+      inputNewCat.style.display = "block";
+      btnAddCat.style.display = "block";
+    } else {
+      inputNewCat.style.display = "none";
+      btnAddCat.style.display = "none";
+      inputNewCat.value = "";
+    }
+  });
+
+  // إضافة تصنيف جديد
+  document.getElementById("btn-إضافة-تصنيف").addEventListener("click", () => {
+    const inputNewCat = document.getElementById("input-تصنيف-جديد");
+    const newCat = inputNewCat.value.trim();
+    if(newCat && !تصنيفات.includes(newCat)) {
+      تصنيفات.push(newCat);
+      تحديث_التصنيفات();
+      document.getElementById("input-تصنيف").value = newCat;
+      inputNewCat.value = "";
+      inputNewCat.style.display = "none";
+      document.getElementById("btn-إضافة-تصنيف").style.display = "none";
+      تحديث_فلتر_القيم();
+    } else {
+      alert("يرجى إدخال تصنيف جديد غير مكرر.");
+    }
+  });
+
+  // تحديث الجدول بناء على الفلاتر
   function تحديث_الجدول() {
     const tbody = document.querySelector("#جدول-مصروفات tbody");
     tbody.innerHTML = "";
@@ -239,8 +275,4 @@
     const فلترتاريخمن = document.getElementById("فلتر-تاريخ-من").value;
     const فلترتاريخإلى = document.getElementById("فلتر-تاريخ-إلى").value;
 
-    // فلترة البيانات حسب الفلاتر
-    let بيانات_مفلترة = بيانات.filter(عنصر => {
-      if (فلترنوع !== "الكل" && عنصر.النوع !== فلترنوع) return false;
-      if (فلترتصنيف !== "الكل" && عنصر.التصنيف !== فلترتصنيف) return false;
-      if (فلترتاريخمن && عنصر.التاريخ < فلترتاريخ
+    let بيانات_مفلترة = بيانات.filter(عنصر
